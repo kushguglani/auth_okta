@@ -99,20 +99,35 @@
     - Graceful shutdown patterns
     - Production-ready implementation
 
+15. [**GraphQL Signup Flow - Complete Breakdown**](./15-graphql-signup-flow.md)
+    - REST vs GraphQL comparison
+    - Step-by-step GraphQL request flow
+    - Code breakdown by file
+    - Interview questions on GraphQL vs REST
+
+16. [**Phase 2: Frontend Integration**](./16-phase2-frontend-integration.md)
+    - Apollo Client configuration (detailed)
+    - Authentication Context pattern (with comments)
+    - Protected Routes implementation
+    - Token management strategies
+    - localStorage vs httpOnly cookies
+    - Interview questions & answers
+
 ---
 
 ## 🔍 Quick Navigation
 
 ### By Topic
-- **Security:** [Auth Plan](./10-auth-plan.md), [Best Practices](./12-best-practices.md), [Pitfalls](./11-common-pitfalls.md)
-- **GraphQL:** [Deep Dive](./05-graphql-deep-dive.md), [vs REST](./06-rest-vs-graphql.md)
+- **Security:** [Auth Plan](./10-auth-plan.md), [Best Practices](./12-best-practices.md), [Pitfalls](./11-common-pitfalls.md), [Token Management](./16-phase2-frontend-integration.md#token-management-strategy)
+- **GraphQL:** [Deep Dive](./05-graphql-deep-dive.md), [vs REST](./06-rest-vs-graphql.md), [Signup Flow](./15-graphql-signup-flow.md)
+- **React:** [Frontend Integration](./16-phase2-frontend-integration.md), [Context API](./16-phase2-frontend-integration.md#authentication-context-pattern), [Protected Routes](./16-phase2-frontend-integration.md#protected-routes-implementation)
 - **Express:** [Deep Dive](./02-express-deep-dive.md), [Middleware](./03-middleware.md), [Features](./04-express-features.md)
-- **Interview:** [Preparation](./13-interview-prep.md), [Auth Plan](./10-auth-plan.md)
+- **Interview:** [Preparation](./13-interview-prep.md), [Auth Plan](./10-auth-plan.md), [GraphQL Flow](./15-graphql-signup-flow.md), [React Patterns](./16-phase2-frontend-integration.md#interview-questions--answers)
 
 ### By Difficulty
 - **Beginner:** [Project Overview](./01-project-overview.md), [Express Deep Dive](./02-express-deep-dive.md)
-- **Intermediate:** [Middleware](./03-middleware.md), [GraphQL](./05-graphql-deep-dive.md), [Refactoring](./09-code-refactoring.md)
-- **Advanced:** [Auth Plan](./10-auth-plan.md), [Redis](./07-redis-explained.md), [Best Practices](./12-best-practices.md)
+- **Intermediate:** [Middleware](./03-middleware.md), [GraphQL](./05-graphql-deep-dive.md), [Refactoring](./09-code-refactoring.md), [GraphQL Flow](./15-graphql-signup-flow.md), [Frontend Integration](./16-phase2-frontend-integration.md)
+- **Advanced:** [Auth Plan](./10-auth-plan.md), [Redis](./07-redis-explained.md), [Best Practices](./12-best-practices.md), [Token Security](./16-phase2-frontend-integration.md#token-management-strategy)
 
 ---
 

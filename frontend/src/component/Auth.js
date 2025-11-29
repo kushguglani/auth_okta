@@ -1,14 +1,26 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import './Auth.css';
 
 const Auth = () => {
+    const navigate = useNavigate();
+    const { signup, login, isAuthenticated } = useAuth();
     const [isLogin, setIsLogin] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
         email: '',
         password: '',
         confirmPassword: ''
     });
+
+    // Redirect if already logged in
+    React.useEffect(() => {
+        if (isAuthenticated) {
+            navigate('/dashboard');
+        }
+    }, [isAuthenticated, navigate]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -37,65 +49,40 @@ const Auth = () => {
         return true;
     };
 
-    // Helper: Make API call
-    const apiCall = async (endpoint, payload) => {
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
-        return await response.json();
-    };
-
     // Handle Login
     const handleLogin = async () => {
-        const data = await apiCall('/api/auth/login', {
-            email: formData.email,
-            password: formData.password
-        });
-
-        if (data.success) {
-            alert('✅ ' + data.message);
-            console.log('User logged in:', data.user);
-            console.log('Token:', data.token);
-            // TODO: Store token in localStorage and redirect
-            // localStorage.setItem('token', data.token);
-            // localStorage.setItem('user', JSON.stringify(data.user));
+        const { email, password } = formData;
+        const result = await login(email, password);
+        
+        if (result.success) {
+            alert(`✅ ${result.message}`);
+            resetForm();
+            navigate('/dashboard');
         } else {
-            alert('❌ ' + data.message);
+            alert(`❌ ${result.message}`);
         }
     };
 
     // Handle Signup
     const handleSignup = async () => {
-        // Validate passwords match
-        if (!validatePasswordMatch()) {
-            return;
-        }
-
-        const data = await apiCall('/api/auth/signup', {
-            name: formData.name,
-            email: formData.email,
-            password: formData.password
-        });
-
-        if (data.success) {
-            alert('✅ ' + data.message);
-            console.log('User created:', data.user);
-            // Switch to login mode and reset form
-            setIsLogin(true);
+        if (!validatePasswordMatch()) return;
+        
+        const { name, email, password } = formData;
+        const result = await signup(name, email, password);
+        
+        if (result.success) {
+            alert(`✅ ${result.message}`);
             resetForm();
+            navigate('/dashboard');
         } else {
-            alert('❌ ' + data.message);
+            alert(`❌ ${result.message}`);
         }
     };
 
     // Main submit handler
     const handleSubmit = async (e) => {
         e.preventDefault();
-
+        setLoading(true);
         try {
             if (isLogin) {
                 await handleLogin();
@@ -105,6 +92,8 @@ const Auth = () => {
         } catch (error) {
             console.error('Error:', error);
             alert('❌ An error occurred. Please try again.');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -178,8 +167,8 @@ const Auth = () => {
                         </div>
                     )}
 
-                    <button type="submit" className="submit-btn">
-                        {isLogin ? 'Login' : 'Sign Up'}
+                    <button type="submit" className="submit-btn" disabled={loading}>
+                        {loading ? 'Please wait...' : (isLogin ? 'Login' : 'Sign Up')}
                     </button>
                 </form>
 
