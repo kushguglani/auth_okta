@@ -3,7 +3,7 @@
 > Complete guide to all packages used in this project with use cases, examples, and alternatives
 
 **Last Updated:** Nov 29, 2025  
-**Total Packages:** 15 backend + 5 frontend = 20 packages
+**Total Packages:** 15 backend + 6 frontend = 21 packages
 
 ---
 
@@ -1216,9 +1216,151 @@ function Counter() {
 - Easy to learn
 - Okta uses React
 
+**In Our Project:**
+```javascript
+// frontend/src/context/AuthContext.js
+
+import React, { createContext, useState, useContext, useEffect } from 'react';
+
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  
+  // Auto-login on mount
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      fetchUser();
+    } else {
+      setLoading(false);
+    }
+  }, []);
+  
+  const value = {
+    user,
+    loading,
+    signup,
+    login,
+    logout,
+    isAuthenticated: !!user
+  };
+  
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+// Custom hook
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider');
+  }
+  return context;
+};
+```
+
+**React Concepts We Use:**
+- **useState** - Local component state
+- **useEffect** - Side effects (auto-login)
+- **useContext** - Global state consumption
+- **createContext** - Global state provider
+- **Custom Hooks** - Reusable logic (useAuth)
+
 ---
 
-### 16. @apollo/client (Future)
+### 19. react-dom (^18.2.0)
+
+**Category:** React Renderer  
+**Size:** ~150KB  
+**License:** MIT
+
+**What it does:**
+- Renders React components to the DOM
+- Handles DOM updates
+- Virtual DOM diffing
+- Event system
+
+**Use Case in Our Project:**
+- Render React app to index.html
+- Mount root component
+
+**In Our Project:**
+```javascript
+// frontend/src/index.js
+
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import './index.css';
+import App from './App';
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+```
+
+**Why We Use It:**
+- Required for React web applications
+- Handles all DOM operations
+- Optimizes re-renders
+
+**Alternatives:**
+- react-native (mobile apps)
+- react-three-fiber (3D rendering)
+- ink (terminal UIs)
+
+---
+
+### 20. react-scripts (^5.0.1)
+
+**Category:** Build Tool  
+**Size:** ~50MB (dev dependency)  
+**License:** MIT
+
+**What it does:**
+- Create React App build configuration
+- Webpack configuration
+- Babel transpilation
+- Development server
+- Production builds
+
+**Use Case in Our Project:**
+- Start development server
+- Build production bundle
+- Run tests
+
+**Scripts:**
+```json
+{
+  "scripts": {
+    "start": "react-scripts start",    // Dev server on port 3000
+    "build": "react-scripts build",    // Production build
+    "test": "react-scripts test",      // Jest tests
+    "eject": "react-scripts eject"     // Eject config (irreversible)
+  }
+}
+```
+
+**Why We Use It:**
+- Zero configuration
+- Handles all build complexity
+- Hot reload in development
+- Optimized production builds
+
+**Alternatives:**
+- Vite (faster, modern)
+- Next.js (SSR, framework)
+- Parcel (zero config bundler)
+- Custom Webpack setup
+
+---
+
+### 16. @apollo/client (^3.8.8)
 
 **Category:** GraphQL Client  
 **Size:** ~500KB  
@@ -1226,16 +1368,20 @@ function Counter() {
 
 **What it does:**
 - GraphQL client for React
-- Caching
+- Caching with InMemoryCache
 - State management
-- Hooks (useQuery, useMutation)
+- React hooks (useQuery, useMutation, useLazyQuery)
+- Request/response link chain
+- Automatic error handling
 
 **Use Case in Our Project:**
-- Query GraphQL API
-- Manage auth state
-- Cache user data
+- Connect React frontend to GraphQL backend
+- Execute signup/login mutations
+- Query user data
+- Cache responses
+- Automatically add JWT tokens to requests
 
-**Example:**
+**Example - Basic Setup:**
 ```javascript
 import { ApolloClient, InMemoryCache, gql, useQuery } from '@apollo/client';
 
@@ -1271,83 +1417,205 @@ function UserList() {
 }
 ```
 
+**In Our Project - Advanced Setup:**
+```javascript
+// frontend/src/config/apolloClient.js
+
+import { ApolloClient, InMemoryCache, createHttpLink } from '@apollo/client';
+import { setContext } from '@apollo/client/link/context';
+
+// HTTP connection to GraphQL API
+const httpLink = createHttpLink({
+  uri: process.env.REACT_APP_GRAPHQL_URL || 'http://localhost:5000/graphql',
+  credentials: 'include', // Include cookies
+});
+
+// Auth link - adds JWT token to every request
+const authLink = setContext((_, { headers }) => {
+  const token = localStorage.getItem('accessToken');
+  return {
+    headers: {
+      ...headers,
+      authorization: token ? `Bearer ${token}` : '',
+    }
+  };
+});
+
+// Chain links: auth runs first, then http
+const client = new ApolloClient({
+  link: authLink.concat(httpLink),
+  cache: new InMemoryCache({
+    typePolicies: {
+      Query: {
+        fields: {
+          me: {
+            merge(existing, incoming) {
+              return incoming; // Always use fresh data
+            },
+          },
+        },
+      },
+    },
+  }),
+  connectToDevTools: process.env.NODE_ENV === 'development',
+});
+
+export default client;
+```
+
+**In Our Project - Mutations:**
+```javascript
+// frontend/src/context/AuthContext.js
+
+import { useMutation, gql } from '@apollo/client';
+
+const SIGNUP_MUTATION = gql`
+  mutation Signup($name: String!, $email: String!, $password: String!) {
+    signup(name: $name, email: $email, password: $password) {
+      success
+      message
+      accessToken
+      refreshToken
+      user {
+        id
+        name
+        email
+        roles
+      }
+    }
+  }
+`;
+
+export const AuthProvider = ({ children }) => {
+  const [signupMutation] = useMutation(SIGNUP_MUTATION);
+  
+  const signup = async (name, email, password) => {
+    const { data } = await signupMutation({
+      variables: { name, email, password }
+    });
+    
+    if (data.signup.success) {
+      localStorage.setItem('accessToken', data.signup.accessToken);
+      setUser(data.signup.user);
+    }
+  };
+};
+```
+
+**Key Features We Use:**
+1. **Link Chaining** - Middleware pattern for requests
+2. **Auth Link** - Auto-adds JWT to every request
+3. **Cache** - Stores query results, prevents duplicate requests
+4. **Hooks** - useMutation, useQuery for React integration
+5. **Type Policies** - Custom cache behavior
+
+**Why We Use It:**
+- Official GraphQL client for React
+- Better than fetch() - handles caching automatically
+- Integrates with React hooks
+- Middleware pattern (auth link)
+- Essential for Okta interviews
+
+**Interview Question:**
+> "How does Apollo Client add JWT tokens to requests?"
+
+**Answer:**
+> "I use the `setContext` link from @apollo/client. It's middleware that runs before every request. I retrieve the token from localStorage and add it to the Authorization header. The auth link is chained with httpLink, so it runs first, adds the token, then httpLink sends the request. This follows the DRY principle - I don't need to manually add the token to every GraphQL call."
+
+**Alternatives:**
+- urql (lighter, simpler)
+- React Query + fetch (REST-focused)
+- SWR (Vercel, simpler)
+- Direct fetch() calls (no caching)
+
 ---
 
-### 17. axios (Future)
+### 17. graphql (^16.12.0) - Frontend
 
-**Category:** HTTP Client  
-**Size:** ~50KB  
+**Category:** GraphQL Core  
+**Size:** ~1MB  
 **License:** MIT
 
 **What it does:**
-- Make HTTP requests
-- Interceptors
-- Request/response transformation
-- Automatic JSON parsing
+- GraphQL JavaScript implementation
+- Query parsing and validation
+- Type system
+- Required peer dependency for @apollo/client
 
 **Use Case in Our Project:**
-- Alternative to Apollo Client
-- REST API calls
-- Token refresh interceptor
+- Required by @apollo/client
+- Parse GraphQL queries
+- Type validation
+- gql template literal tag
 
-**Example:**
+**In Our Project:**
 ```javascript
-import axios from 'axios';
+import { gql } from '@apollo/client';
 
-// Simple request
-const response = await axios.get('/api/users');
-console.log(response.data);
-
-// With config
-const response = await axios.post('/api/auth/login', {
-  email: 'user@example.com',
-  password: 'password123'
-}, {
-  headers: {
-    'Content-Type': 'application/json'
-  }
-});
-
-// Interceptors
-axios.interceptors.request.use(config => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-axios.interceptors.response.use(
-  response => response,
-  async error => {
-    if (error.response.status === 401) {
-      // Refresh token
+// Define GraphQL queries/mutations
+const LOGIN_MUTATION = gql`
+  mutation Login($email: String!, $password: String!) {
+    login(email: $email, password: $password) {
+      success
+      message
+      accessToken
+      user {
+        id
+        name
+        email
+      }
     }
-    return Promise.reject(error);
   }
-);
+`;
+
+const ME_QUERY = gql`
+  query Me {
+    me {
+      id
+      name
+      email
+      roles
+      createdAt
+    }
+  }
+`;
 ```
+
+**Why We Use It:**
+- Required peer dependency
+- Enables gql`` syntax
+- Type checking
+- Query validation
+
+**Note:** This is the same package as backend graphql, but used differently:
+- **Backend:** Schema creation, type definitions
+- **Frontend:** Query parsing with gql`` tag
+
+**Alternatives:**
+- None (standard GraphQL implementation)
 
 ---
 
-### 18. react-router-dom (Future)
+### 18. react-router-dom (^7.9.6)
 
-**Category:** Routing  
+**Category:** Routing Library  
 **Size:** ~70KB  
 **License:** MIT
 
 **What it does:**
-- Client-side routing
-- Protected routes
-- URL parameters
-- Navigation
+- Client-side routing for React
+- Protected routes (route guards)
+- URL parameters and navigation
+- Declarative routing
+- History management
 
 **Use Case in Our Project:**
-- Route to login/dashboard
+- Navigate between login/signup/dashboard
 - Protect authenticated routes
-- URL-based navigation
+- Redirect after login/logout
+- Handle 404 pages
 
-**Example:**
+**Example - Basic:**
 ```javascript
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
@@ -1372,6 +1640,134 @@ function App() {
   );
 }
 ```
+
+**In Our Project - Full Implementation:**
+```javascript
+// frontend/src/App.js
+
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { ApolloProvider } from '@apollo/client';
+import client from './config/apolloClient';
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
+import Auth from './component/Auth';
+import Dashboard from './components/Dashboard';
+
+function App() {
+  return (
+    <ApolloProvider client={client}>
+      <AuthProvider>
+        <Router>
+          <div className="App">
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/login" element={<Auth />} />
+              <Route path="/signup" element={<Auth />} />
+              
+              {/* Protected Routes */}
+              <Route 
+                path="/dashboard" 
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                } 
+              />
+              
+              {/* Default Route */}
+              <Route path="/" element={<Navigate to="/login" replace />} />
+              <Route path="*" element={<Navigate to="/login" replace />} />
+            </Routes>
+          </div>
+        </Router>
+      </AuthProvider>
+    </ApolloProvider>
+  );
+}
+```
+
+**Protected Route Component:**
+```javascript
+// frontend/src/components/ProtectedRoute.js
+
+import React from 'react';
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+
+const ProtectedRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+
+  // Show loading while checking auth
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  // Redirect if not authenticated
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Render protected component
+  return children;
+};
+
+export default ProtectedRoute;
+```
+
+**Navigation with useNavigate:**
+```javascript
+// frontend/src/component/Auth.js
+
+import { useNavigate } from 'react-router-dom';
+
+const Auth = () => {
+  const navigate = useNavigate();
+  const { signup, login } = useAuth();
+  
+  const handleLogin = async () => {
+    const result = await login(email, password);
+    if (result.success) {
+      navigate('/dashboard'); // Programmatic navigation
+    }
+  };
+};
+```
+
+**Key Features We Use:**
+1. **BrowserRouter** - HTML5 history API routing
+2. **Routes & Route** - Declarative route definitions
+3. **Navigate** - Redirect component
+4. **useNavigate** - Programmatic navigation hook
+5. **replace** - Replace history entry (prevent back button loop)
+
+**Why We Use It:**
+- Industry standard for React routing
+- Declarative routing (easier to understand)
+- Protected routes pattern
+- Essential for SPAs (Single Page Applications)
+- Required for Okta interview
+
+**Route Guard Pattern:**
+```
+User visits /dashboard
+        ↓
+ProtectedRoute checks: Is user logged in?
+        ↓
+   YES: Render Dashboard
+   NO: <Navigate to="/login" replace />
+```
+
+**Interview Question:**
+> "How do you implement protected routes in React?"
+
+**Answer:**
+> "I create a ProtectedRoute component that wraps protected pages. It checks if the user is authenticated using the auth context. If authenticated, it renders the children. If not, it uses the Navigate component to redirect to /login with replace={true} to prevent back button loops. I also handle loading states to avoid flashing the login page while checking authentication."
+
+**Alternatives:**
+- React Router v5 (older, different API)
+- Next.js routing (file-based)
+- TanStack Router (type-safe)
+- Reach Router (deprecated, merged into React Router)
 
 ---
 
@@ -1415,6 +1811,8 @@ npm run dev
 
 ## Quick Reference Table
 
+### Backend Dependencies
+
 | Package | Category | Size | Use Case |
 |---------|----------|------|----------|
 | express | Framework | 200KB | Web server |
@@ -1432,6 +1830,17 @@ npm run dev
 | nodemailer | Email | 300KB | Send emails |
 | graphql | GraphQL | 1MB | GraphQL core |
 | nodemon | Dev Tool | 3MB | Auto-restart |
+
+### Frontend Dependencies
+
+| Package | Category | Size | Use Case |
+|---------|----------|------|----------|
+| react | UI Library | 300KB | Build components |
+| react-dom | Renderer | 150KB | Render to DOM |
+| @apollo/client | GraphQL Client | 500KB | GraphQL queries |
+| graphql | GraphQL Core | 1MB | Query parsing |
+| react-router-dom | Routing | 70KB | Client routing |
+| react-scripts | Build Tool | 50MB | CRA tooling |
 
 ---
 
@@ -1487,6 +1896,32 @@ npm run dev
 ---
 
 **Last Updated:** Nov 29, 2025  
-**Total Dependencies:** 20 packages  
+**Total Dependencies:** 21 packages (15 backend + 6 frontend)  
 **Project:** KTA Authentication System
+
+---
+
+## Installation Commands
+
+### Backend
+```bash
+cd backend
+bun install bcryptjs jsonwebtoken mongoose redis express-rate-limit helmet express-validator cookie-parser nodemailer apollo-server-express graphql dotenv
+```
+
+### Frontend
+```bash
+cd frontend
+bun add @apollo/client@3.8.8 graphql react-router-dom
+```
+
+### DevDependencies
+```bash
+# Backend
+cd backend
+bun add -d nodemon
+
+# Frontend (already included in CRA)
+# react-scripts is included by default
+```
 
