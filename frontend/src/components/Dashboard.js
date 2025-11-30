@@ -5,7 +5,7 @@ import './Dashboard.css';
 
 /**
  * Dashboard Component
- * 
+ *
  * Protected page - only accessible to authenticated users
  * Displays user information and logout button
  */

@@ -785,7 +785,7 @@ Before moving to Phase 3:
 ## 🎉 Phase 2 Complete!
 
 **Next Steps:**
-- Phase 3: Advanced Features (Email verification, Password reset, Role-based access)
+- Phase 3: Advanced Features (Email verification, Password reset, Role-based access, single sign on )
 - Phase 4: Production Hardening (Security, Performance, Monitoring)
 
 **Test your implementation and prepare for Phase 3!** 🚀

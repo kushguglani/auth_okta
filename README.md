@@ -1,6 +1,73 @@
-# React & Node.js Boilerplate
+# 🔐 KTA Authentication Service
 
-A modern full-stack boilerplate with React frontend and Node.js/Express backend.
+> **Production-Ready Identity & Access Management System**  
+> Full-stack authentication with React + Node.js + GraphQL + MongoDB + Redis
+
+---
+
+## 🎯 **Quick Links**
+
+| Document | Description |
+|----------|-------------|
+| **[📖 System Design](./SYSTEM_DESIGN.md)** | **START HERE** - Complete architecture, flows, & roadmap |
+| [📚 Knowledge Base](./knowledge/README.md) | Detailed documentation (14 modules) |
+| [🔧 Setup Guide](./SETUP_GUIDE.md) | Installation & configuration |
+| [📦 Dependencies](./DEPENDENCIES.md) | Package reference & examples |
+
+---
+
+## 🏗️ System Architecture
+
+```
+┌─────────────┐
+│   React 18  │ → Apollo Client + Axios + React Router
+└──────┬──────┘
+       │ HTTPS
+┌──────▼────────────────────────────────────────────┐
+│  Express Server (Bun Runtime)                     │
+│  ├── REST API     → /api/auth/*                   │
+│  ├── GraphQL API  → /graphql                      │
+│  └── Middleware   → Auth, CORS, Security          │
+└──────┬────────────────────────┬───────────────────┘
+       │                         │
+┌──────▼─────────┐      ┌───────▼────────┐
+│   MongoDB      │      │     Redis      │
+│  - Users       │      │  - Tokens      │
+│  - Sessions    │      │  - Cache       │
+│  - Audit Logs  │      │  - Rate Limit  │
+└────────────────┘      └────────────────┘
+```
+
+**[View Complete System Design →](./SYSTEM_DESIGN.md)**
+
+---
+
+## ✨ Features
+
+### ✅ Implemented (Phase 1)
+- User Registration & Login (REST + GraphQL)
+- JWT Token Authentication
+- Password Hashing (bcrypt)
+- GraphQL API (Apollo Server)
+- Redis Caching (with fallback)
+- MongoDB Integration
+- Security Headers (Helmet.js)
+- Error Handling & Logging
+- Graceful Shutdown
+
+### 🚧 Coming Soon
+- Email Verification
+- Password Reset Flow
+- Two-Factor Authentication
+- OAuth 2.0 / SSO
+- Role-Based Access Control
+- Session Management
+- Admin Dashboard
+- API Rate Limiting
+
+**[View Complete Roadmap →](./SYSTEM_DESIGN.md#9-future-enhancements)**
+
+---
 
 ## 🚀 Project Structure
 

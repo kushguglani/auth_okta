@@ -54,16 +54,41 @@ app.listen(5000, () => {
 **In Our Project:**
 ```javascript
 // backend/server.js
+const express = require('express');
 const app = express();
+const PORT = process.env.PORT || 5000;
 
-// REST API routes
-app.post('/api/auth/signup', async (req, res) => {
-  // Handle signup
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Welcome route
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Welcome to KTA Auth API! 🚀',
+    version: '1.0.0',
+    documentation: {
+      rest: '/api',
+      graphql: '/graphql'
+    }
+  });
 });
 
-app.post('/api/auth/login', async (req, res) => {
-  // Handle login
-});
+// Mount API routes
+app.use('/api', require('./routes/index'));
+
+// Start server
+const startServer = async () => {
+  await connectDB();
+  await connectRedis();
+  await startApolloServer(app, PORT);
+  
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+  });
+};
+
+startServer();
 ```
 
 **Why We Use It:**
@@ -129,19 +154,58 @@ server.applyMiddleware({ app });
 
 **In Our Project:**
 ```javascript
-// backend/server.js
-const server = new ApolloServer({
-  typeDefs,
-  resolvers,
-  context: ({ req }) => {
-    const token = req.headers.authorization;
-    const user = verifyToken(token);
-    return { user };
-  }
-});
+// backend/graphql/apolloServer.js
+const { ApolloServer } = require('apollo-server-express');
+const jwt = require('jsonwebtoken');
+const typeDefs = require('./typeDefs');
+const resolvers = require('./resolvers');
 
-await server.start();
-server.applyMiddleware({ app, path: '/graphql' });
+const createApolloServer = () => {
+  return new ApolloServer({
+    typeDefs,
+    resolvers,
+    
+    // Context: Runs on every request
+    context: ({ req }) => {
+      const token = req.headers.authorization || '';
+      let user = null;
+      
+      if (token) {
+        try {
+          const decoded = jwt.verify(
+            token.replace('Bearer ', ''),
+            process.env.JWT_ACCESS_SECRET
+          );
+          user = decoded; // { userId, email, roles }
+        } catch (err) {
+          console.log('Invalid token:', err.message);
+        }
+      }
+      
+      return { user, req };
+    },
+    
+    // GraphQL Playground (disable in production)
+    playground: process.env.NODE_ENV !== 'production',
+    introspection: process.env.NODE_ENV !== 'production'
+  });
+};
+
+const startApolloServer = async (app, PORT) => {
+  const server = createApolloServer();
+  await server.start();
+  
+  server.applyMiddleware({
+    app,
+    path: '/graphql',
+    cors: false // CORS already handled by Express
+  });
+  
+  console.log(`🎮 GraphQL Playground: http://localhost:${PORT}/graphql`);
+  return server;
+};
+
+module.exports = { startApolloServer };
 ```
 
 **Why We Use It:**
@@ -479,30 +543,69 @@ const exists = await client.exists('user:123'); // 0 (false)
 **In Our Project:**
 ```javascript
 // backend/config/redis.js
+const redis = require('redis');
+
+let redisClient;
+
+// In-memory store fallback for development
+const inMemoryStore = new Map();
 
 const connectRedis = async () => {
-  const redisClient = redis.createClient({
-    url: process.env.REDIS_URL
-  });
+  const REDIS_URL = process.env.REDIS_URL;
   
-  await redisClient.connect();
-  return redisClient;
+  if (!REDIS_URL) {
+    console.log('⚠️  Redis not configured - Using in-memory store (development mode)');
+    console.log('💡 To use real Redis:');
+    console.log('   1. Install Redis: brew install redis');
+    console.log('   2. Start Redis: redis-server');
+    console.log('   3. Set in .env: REDIS_URL=redis://localhost:6379\n');
+    
+    redisClient = {
+      set: async (key, value, mode, ttl) => {
+        inMemoryStore.set(key, { value, expires: Date.now() + ttl * 1000 });
+      },
+      get: async (key) => {
+        const item = inMemoryStore.get(key);
+        if (!item) return null;
+        if (item.expires < Date.now()) {
+          inMemoryStore.delete(key);
+          return null;
+        }
+        return item.value;
+      },
+      del: async (key) => inMemoryStore.delete(key),
+      exists: async (key) => inMemoryStore.has(key) ? 1 : 0
+    };
+    
+    console.log('✅ In-memory store initialized');
+    return redisClient;
+  }
+  
+  // Real Redis connection
+  try {
+    redisClient = redis.createClient({ url: REDIS_URL });
+    await redisClient.connect();
+    console.log('✅ Redis connected');
+    return redisClient;
+  } catch (error) {
+    console.error('❌ Redis connection failed:', error.message);
+    // Fallback to in-memory
+    return connectRedis();
+  }
 };
 
+const getRedisClient = () => redisClient;
+
+module.exports = { connectRedis, getRedisClient };
+
+// Usage in resolvers:
 // Store refresh token
+const redis = getRedisClient();
 await redis.set(
   `refresh_token:${userId}`,
   refreshToken,
   'EX',
   7 * 24 * 60 * 60 // 7 days
-);
-
-// Blacklist token (logout)
-await redis.set(
-  `blacklist:${token}`,
-  '1',
-  'EX',
-  900 // 15 minutes
 );
 ```
 
@@ -562,11 +665,28 @@ app.use(cors({
 **In Our Project:**
 ```javascript
 // backend/server.js
+const cors = require('cors');
 
+// CORS configuration
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
+  credentials: true // Allow cookies to be sent
 }));
+
+// backend/.env
+FRONTEND_URL=http://localhost:3000
+```
+
+**Why credentials: true?**
+```javascript
+// Allows cookies in cross-origin requests
+// Required for httpOnly cookies (Phase 3)
+// Must match frontend fetch() credentials: 'include'
+
+// Frontend example:
+fetch('http://localhost:5000/api/login', {
+  credentials: 'include' // Send cookies
+})
 ```
 
 **Why CORS is Needed:**
@@ -648,10 +768,32 @@ Content-Security-Policy: default-src 'self'
 **In Our Project:**
 ```javascript
 // backend/server.js
+const helmet = require('helmet');
 
+// Apply Helmet with custom config
 app.use(helmet({
+  // Disable CSP in development (allows GraphQL Playground)
   contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+  // Disable for Apollo Server compatibility
   crossOriginEmbedderPolicy: false
+}));
+```
+
+**Why disable CSP in development?**
+```javascript
+// GraphQL Playground uses inline scripts
+// CSP blocks inline scripts by default
+// In production, we'd disable Playground and enable CSP
+
+// Production config would be:
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+    }
+  }
 }));
 ```
 
@@ -718,18 +860,39 @@ const globalLimiter = rateLimit({
 app.use('/api/', globalLimiter);
 ```
 
-**In Our Project:**
+**Currently Installed but NOT USED (Phase 3 - Future):**
 ```javascript
-// Future implementation (Phase 3)
+// backend/server.js
+const rateLimit = require('express-rate-limit');
 
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  message: 'Too many login attempts from this IP'
+// Global API limiter
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Max 100 requests per 15 minutes per IP
+  message: 'Too many requests from this IP, please try again later',
+  standardHeaders: true, // Return rate limit info in headers
+  legacyHeaders: false
 });
 
-app.post('/api/auth/login', loginLimiter, loginController);
+app.use('/api/', apiLimiter); // Apply to all /api routes
+
+// Stricter limiter for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5, // Only 5 login attempts per 15 minutes
+  message: 'Too many login attempts, please try again after 15 minutes',
+  skipSuccessfulRequests: true // Don't count successful logins
+});
+
+// Apply to specific routes
+app.post('/api/auth/login', authLimiter, loginController);
+app.post('/api/auth/signup', authLimiter, signupController);
 ```
+
+**Why NOT Used Yet:**
+- Phase 2 focused on basic auth flow
+- Phase 3 will add production hardening
+- Currently useful for learning without rate limiting interference
 
 **Response Headers:**
 ```
@@ -808,20 +971,62 @@ app.post('/api/auth/signup', signupValidation, (req, res) => {
 });
 ```
 
-**In Our Project (Future):**
+**Currently Installed but NOT USED (Phase 3 - Future):**
 ```javascript
-// Phase 3 implementation
+// backend/middleware/validation.js (Phase 3)
+const { body, validationResult } = require('express-validator');
 
-const { body } = require('express-validator');
+// Validation middleware
+const validateRequest = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ 
+      success: false,
+      errors: errors.array() 
+    });
+  }
+  next();
+};
 
+// Signup validation rules
 const signupRules = [
-  body('email').isEmail().normalizeEmail(),
-  body('password').isStrongPassword(),
-  body('name').trim().escape().notEmpty()
+  body('email')
+    .isEmail()
+    .normalizeEmail()
+    .withMessage('Invalid email address'),
+  body('password')
+    .isStrongPassword({
+      minLength: 8,
+      minLowercase: 1,
+      minUppercase: 1,
+      minNumbers: 1,
+      minSymbols: 1
+    })
+    .withMessage('Password must be at least 8 characters with uppercase, lowercase, number, and symbol'),
+  body('name')
+    .trim()
+    .escape()
+    .notEmpty()
+    .withMessage('Name is required')
+    .isLength({ min: 2, max: 50 })
+    .withMessage('Name must be between 2-50 characters')
 ];
 
+// Login validation rules
+const loginRules = [
+  body('email').isEmail().normalizeEmail(),
+  body('password').notEmpty()
+];
+
+// Apply to routes
 app.post('/api/auth/signup', signupRules, validateRequest, signupController);
+app.post('/api/auth/login', loginRules, validateRequest, loginController);
 ```
+
+**Why NOT Used Yet:**
+- Currently using GraphQL schema validation
+- REST endpoints have basic validation
+- Phase 3 will add comprehensive validation
 
 **Common Validators:**
 ```javascript
@@ -897,22 +1102,49 @@ app.get('/signed', (req, res) => {
 });
 ```
 
-**In Our Project (Future):**
+**Currently Installed but NOT USED (Phase 3 - Future):**
 ```javascript
-// Phase 3: Store tokens in httpOnly cookies
+// backend/server.js
+const cookieParser = require('cookie-parser');
 
+app.use(cookieParser(process.env.COOKIE_SECRET));
+
+// Phase 3: Store tokens in httpOnly cookies
 app.post('/api/auth/login', async (req, res) => {
   // ... login logic
   
-  res.cookie('refreshToken', token, {
-    httpOnly: true,  // Can't access via JavaScript
-    secure: true,    // HTTPS only
+  // Store refresh token in httpOnly cookie
+  res.cookie('refreshToken', refreshToken, {
+    httpOnly: true,  // Can't access via JavaScript (XSS protection)
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in production
     sameSite: 'strict', // CSRF protection
     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
   });
   
-  res.json({ success: true });
+  res.json({ 
+    success: true,
+    accessToken // Send access token in response body
+  });
 });
+
+// Read cookie in subsequent requests
+app.get('/api/auth/refresh', async (req, res) => {
+  const refreshToken = req.cookies.refreshToken; // Auto-parsed by cookie-parser
+  // ... verify and issue new access token
+});
+```
+
+**Why We'll Use It (Phase 3):**
+```javascript
+// Current (Phase 2): localStorage
+// - ❌ Vulnerable to XSS attacks
+// - ✅ Easy to implement
+// - ✅ Works with CORS
+
+// Future (Phase 3): httpOnly cookies
+// - ✅ Protected from XSS (can't access via JavaScript)
+// - ❌ Needs CSRF protection
+// - ✅ More secure for production
 ```
 
 **Why We Use It:**
@@ -983,13 +1215,45 @@ require('dotenv').config();
 
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI;
-const JWT_SECRET = process.env.JWT_ACCESS_SECRET;
+const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
+const FRONTEND_URL = process.env.FRONTEND_URL;
 
-// backend/.env
+// backend/.env (ACTUAL structure from our project)
 PORT=5000
-MONGODB_URI=mongodb://localhost:27017/kta_auth
-JWT_ACCESS_SECRET=your-secret-key
-JWT_REFRESH_SECRET=your-refresh-secret
+NODE_ENV=development
+
+# MongoDB Atlas
+MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/kta_auth?retryWrites=true&w=majority&appName=auth0
+
+# JWT Secrets (256-bit minimum)
+JWT_ACCESS_SECRET=a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6
+JWT_REFRESH_SECRET=f2e1d0c9b8a7z6y5x4w3v2u1t0s9r8q7p6o5n4m3l2k1j0i9h8g7
+
+# JWT Expiration
+JWT_ACCESS_EXPIRY=15m
+JWT_REFRESH_EXPIRY=7d
+
+# Frontend URL
+FRONTEND_URL=http://localhost:3000
+
+# GraphQL
+GRAPHQL_PLAYGROUND=true
+GRAPHQL_INTROSPECTION=true
+```
+
+**Security Note:**
+```javascript
+// NEVER commit .env to git!
+// Add to .gitignore:
+.env
+.env.local
+.env.*.local
+
+// Create .env.example (without secrets):
+PORT=5000
+MONGODB_URI=your-mongodb-connection-string
+JWT_ACCESS_SECRET=your-secret-here
 ```
 
 **Best Practices:**
@@ -1060,39 +1324,90 @@ await transporter.sendMail({
 });
 ```
 
-**In Our Project (Future - Phase 3):**
+**Currently Installed but NOT USED (Phase 3 - Future):**
 ```javascript
-// Send verification email
+// backend/utils/email.js (Phase 3)
+const nodemailer = require('nodemailer');
+
+// Create transporter
+const transporter = nodemailer.createTransporter({
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: process.env.SMTP_PORT || 587,
+  secure: false, // true for 465, false for other ports
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASSWORD
+  }
+});
+
+// Email verification (Phase 3)
 const sendVerificationEmail = async (user, token) => {
   const verificationUrl = `${process.env.FRONTEND_URL}/verify/${token}`;
   
   await transporter.sendMail({
+    from: `"${process.env.APP_NAME}" <${process.env.SMTP_FROM}>`,
     to: user.email,
-    subject: 'Verify your email',
+    subject: 'Verify your email address',
     html: `
-      <h1>Email Verification</h1>
-      <p>Click the link below to verify your email:</p>
-      <a href="${verificationUrl}">Verify Email</a>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1>Email Verification</h1>
+        <p>Hi ${user.name},</p>
+        <p>Thanks for signing up! Click the button below to verify your email:</p>
+        <a href="${verificationUrl}" 
+           style="background: #667eea; color: white; padding: 12px 24px; 
+                  text-decoration: none; border-radius: 4px; display: inline-block;">
+          Verify Email
+        </a>
+        <p>This link expires in 24 hours.</p>
+        <p>If you didn't create an account, please ignore this email.</p>
+      </div>
     `
   });
 };
 
-// Send password reset
+// Password reset email (Phase 3)
 const sendPasswordReset = async (user, token) => {
   const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${token}`;
   
   await transporter.sendMail({
+    from: `"${process.env.APP_NAME}" <${process.env.SMTP_FROM}>`,
     to: user.email,
-    subject: 'Password Reset',
+    subject: 'Reset your password',
     html: `
-      <h1>Reset Your Password</h1>
-      <p>Click the link below to reset your password:</p>
-      <a href="${resetUrl}">Reset Password</a>
-      <p>This link expires in 1 hour.</p>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1>Password Reset Request</h1>
+        <p>Hi ${user.name},</p>
+        <p>We received a request to reset your password. Click the button below:</p>
+        <a href="${resetUrl}" 
+           style="background: #667eea; color: white; padding: 12px 24px; 
+                  text-decoration: none; border-radius: 4px; display: inline-block;">
+          Reset Password
+        </a>
+        <p>This link expires in 1 hour.</p>
+        <p>If you didn't request a password reset, please ignore this email.</p>
+      </div>
     `
   });
 };
+
+module.exports = { sendVerificationEmail, sendPasswordReset };
 ```
+
+**Environment Variables Needed (Phase 3):**
+```bash
+# .env
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-app-password  # Not your Gmail password!
+SMTP_FROM=noreply@yourapp.com
+APP_NAME=KTA Auth
+```
+
+**Why NOT Used Yet:**
+- Email verification is Phase 3 feature
+- Requires SMTP configuration
+- Currently focused on core auth flow
 
 **Common SMTP Services:**
 - Gmail (free, 500/day limit)

@@ -3,7 +3,7 @@ import { setContext } from '@apollo/client/link/context';
 
 /**
  * Apollo Client Configuration
- * 
+ *
  * Connects React frontend to GraphQL backend
  * Handles authentication via JWT tokens
  */
@@ -18,7 +18,7 @@ const httpLink = createHttpLink({
 const authLink = setContext((_, { headers }) => {
   // Get token from localStorage
   const token = localStorage.getItem('accessToken');
-  
+
   // Return headers with authorization token
   return {
     headers: {

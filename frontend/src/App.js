@@ -18,17 +18,17 @@ function App() {
               {/* Public Routes */}
               <Route path="/login" element={<Auth />} />
               <Route path="/signup" element={<Auth />} />
-              
+
               {/* Protected Routes */}
-              <Route 
-                path="/dashboard" 
+              <Route
+                path="/dashboard"
                 element={
                   <ProtectedRoute>
                     <Dashboard />
                   </ProtectedRoute>
-                } 
+                }
               />
-              
+
               {/* Default Route */}
               <Route path="/" element={<Navigate to="/login" replace />} />
               <Route path="*" element={<Navigate to="/login" replace />} />

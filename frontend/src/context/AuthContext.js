@@ -3,7 +3,7 @@ import { useMutation, useQuery, gql } from '@apollo/client';
 
 /**
  * Authentication Context
- * 
+ *
  * Provides global auth state to all components
  * Handles login, signup, logout
  */
@@ -122,7 +122,7 @@ export const AuthProvider = ({ children }) => {
       });
 
       const { data, errors } = await response.json();
-      
+
       if (errors) {
         console.error('Error fetching user:', errors);
         localStorage.removeItem('accessToken');
@@ -152,19 +152,19 @@ export const AuthProvider = ({ children }) => {
         if (data.signup.refreshToken) {
           localStorage.setItem('refreshToken', data.signup.refreshToken);
         }
-        
+
         // Set user
         setUser(data.signup.user);
-        
+
         return { success: true, message: data.signup.message };
       } else {
         return { success: false, message: data.signup.message };
       }
     } catch (error) {
       console.error('Signup error:', error);
-      return { 
-        success: false, 
-        message: error.message || 'Signup failed. Please try again.' 
+      return {
+        success: false,
+        message: error.message || 'Signup failed. Please try again.'
       };
     }
   };
@@ -182,19 +182,19 @@ export const AuthProvider = ({ children }) => {
         if (data.login.refreshToken) {
           localStorage.setItem('refreshToken', data.login.refreshToken);
         }
-        
+
         // Set user
         setUser(data.login.user);
-        
+
         return { success: true, message: data.login.message };
       } else {
         return { success: false, message: data.login.message };
       }
     } catch (error) {
       console.error('Login error:', error);
-      return { 
-        success: false, 
-        message: error.message || 'Login failed. Please try again.' 
+      return {
+        success: false,
+        message: error.message || 'Login failed. Please try again.'
       };
     }
   };

@@ -35,11 +35,14 @@ const connectDB = require('./config/database');
 const { connectRedis } = require('./config/redis');
 const { startApolloServer } = require('./graphql/apolloServer');
 const { setupErrorHandlers } = require('./config/errorHandlers');
+const passport = require('./config/passport'); // Phase 3.5 - OAuth
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 📍 IMPORT ROUTES
 // ═══════════════════════════════════════════════════════════════════════════
 const apiRoutes = require('./routes/index');
+const adminRoutes = require('./routes/admin'); // Phase 3.3 - Admin panel
+const oauthRoutes = require('./routes/oauth'); // Phase 3.5 - OAuth/SSO
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 🚀 EXPRESS APP INITIALIZATION
@@ -66,6 +69,9 @@ app.use(cors({
 // Body Parsers - Parse JSON and URL-encoded data
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Passport.js Initialization (Phase 3.5 - OAuth)
+app.use(passport.initialize());
 
 // Request Logging (Development only)
 if (process.env.NODE_ENV !== 'production') {
@@ -94,6 +100,12 @@ app.get('/', (req, res) => {
 // Mount API routes under /api prefix
 // Routes defined in /routes/index.js
 app.use('/api', apiRoutes);
+
+// Mount Admin routes (Phase 3.3 - RBAC)
+app.use('/api/admin', adminRoutes);
+
+// Mount OAuth routes (Phase 3.5 - OAuth/SSO)
+app.use('/api/auth', oauthRoutes);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 🚀 SERVER INITIALIZATION
